@@ -5,7 +5,6 @@ import threading
 
 def run_consumer():
     print("Listening on port " + str(LISTEN_PORT))
-    topicLabel = "random"
     print("Launching printing daemon...")
     newThread = threading.Thread(target=printData, args=())
     newThread.daemon = True
@@ -14,9 +13,11 @@ def run_consumer():
     master = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ## send MASTER the port we are listening on
     master.connect((MASTER_IP, MASTER_PORT))
-    msg = "consumer\n" + str(LISTEN_PORT) ##Message to send to MASTER 
+    msg = "consumer\n" + str(LISTEN_PORT) + "\n" + topicLabel ##Message to send to MASTER 
     master.send(msg.encode())
-    master_response = master.recv(1024).decode()
+    master_response = master.recv(1024)
+    master_response = master_response.decode()
+    master.send("ok".encode())
     print("Master: " + master_response)
     master.close()
 
@@ -26,11 +27,14 @@ def run_consumer():
     newThread.start()
 
     prods = master_response.split("\n")
+    prods[:] = [x for x in prods if x != '']    # remove all whitespace
     if len(prods) > 0:
         ## Use list of producers to get data
         for producer in prods:
             connectToProducer(producer)
-    
+    count = 0
+    while True:
+        count += 1
     ## empty list from master, wait until master sends producers to daemon process    
 
     
@@ -44,34 +48,38 @@ def printData():
                 if data == "":
                     ## remove producer from list of producers
                     producers.remove(producer)
+                    ip, port = producer.getsockname()
+                    print("Producer Removed: " + ip + ":" + str(port))
+                    if(len(producers) == 0):
+                        print("Waiting for more producers...")
                 else:
                     print(data)
         
 ## connect to producer, send groupID, and add socket to list of producer sockets
 def connectToProducer(producer):
-    print(producer)
+    print("Producer Added: " + producer)
+    producer = producer.strip("\n")
     ip, port = producer.split(":")
-    print(ip)
-    print(port)
     prodConn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    prodConn.connect((ip, int(port)))
-    producers.append(producer) ## add to list
+    prodConn.connect( (ip, int(port)) )
+    producers.append(prodConn) ## add to list
     # Listen on Port for consumer
     prodConn.send(groupID.encode())
     return
 
 ## daemon to update producers list from master
 def listenForMaster():
-    master = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    master.bind((socket.gethostname(), LISTEN_PORT))
-    master.listen(5)
+    consumer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    consumer.bind((socket.gethostname(), LISTEN_PORT))
+    consumer.listen(5)
 
     while True:
-        master, addr = master.accept()
-        producer = master.recv(1024).decode()
-        ip, port = producer.split(":")
-        producer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        producers.append(producer)
+        master, addr = consumer.accept()
+        producer = master.recv(1024)
+        master.send("ok".encode())
+        producer = producer.decode()
+        producer = producer.strip("\n")
+        connectToProducer(producer)
         master.close()
 
 
@@ -85,8 +93,13 @@ def exit_gracefully(signum, frame):
     master.close()
     print("Exited from Master...")
     ## SEND EXIT TO ALL producers
+    closingSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     for producer in producers:
+        # closingSocket.connect(producer.getsockname())
+        # closingSocket.send()
+        print(producer)
         producer.send("".encode())
+        producer.close()
     print("Exited from Producers...")
     # for consumer in consumerGroups:
     #     consumer.send("".encode())
@@ -101,6 +114,9 @@ def get_free_tcp_port():
     tcp.close()
     return port
 
+#def handler(s):
+  #  print("Broke")
+
 if __name__ == "__main__":
     producers = [] 
     LISTEN_PORT = get_free_tcp_port() ## get port number
@@ -110,4 +126,5 @@ if __name__ == "__main__":
     MASTER_PORT = 8080 ## MASTER PORT
     original_sigint = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, exit_gracefully)
+  #  signal(SIGPIPE, handler)
     run_consumer()
