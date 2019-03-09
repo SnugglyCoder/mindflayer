@@ -218,29 +218,21 @@ public class Consumer {
                         toServer.flush();
                         DataInputStream fromServer = new DataInputStream(master.getInputStream());
 
-                        String message = readString(fromServer).trim();
+                        // Get list of producers
+                        String[] listOfAddressesFromMaster = readString(fromServer).trim().split("\\r?\\n");
 
-                        if (message.equalsIgnoreCase("SHUTDOWN")) {
-                            // todo make sure all open connections are closed gracefully
-                            // This is a temporary brutal method
-                            System.exit(0);
-                        } else {
-                            // Get list of producers
-                            String[] listOfAddressesFromMaster = message.split("\\r?\\n");
+                        // Respond OK
+                        writeString(toServer, "consumer says OK");
 
-                            // Respond OK
-                            writeString(toServer, "consumer says OK");
-
-                            for (String address: listOfAddressesFromMaster) {
-                                System.out.println(address);
-                            }
-
-                            // Create a minion for each producer address
-                            spawnMinions(listOfAddressesFromMaster);
-
-                            toServer.close();
-                            fromServer.close();
+                        for (String address: listOfAddressesFromMaster) {
+                            System.out.println(address);
                         }
+
+                        // Create a minion for each producer address
+                        spawnMinions(listOfAddressesFromMaster);
+
+                        toServer.close();
+                        fromServer.close();
 
                     } catch (IOException ex) {
                         // Ignore because it's likely that master is lost.
