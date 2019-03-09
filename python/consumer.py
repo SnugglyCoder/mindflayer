@@ -105,8 +105,8 @@ if __name__ == "__main__":
     producers = [] 
     LISTEN_PORT = get_free_tcp_port() ## get port number
     MASTER_IP = sys.argv[1] ## MASTER IP from cmd line
-    #topicLabel = sys.argv[2] ## topic from cmdln
-    groupID = sys.argv[2] ## groupID
+    topicLabel = sys.argv[2] ## topic from cmdln
+    groupID = sys.argv[3] ## groupID
     MASTER_PORT = 8080 ## MASTER PORT
     original_sigint = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, exit_gracefully)
