@@ -15,7 +15,7 @@ def run_producer():
     producer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ## send MASTER the port we are listening on
     producer.connect((MASTER_IP, MASTER_PORT))
-    msg = "producer \n" + str(LISTEN_PORT) ##Message to send to MASTER 
+    msg = "producer\n" + str(LISTEN_PORT) + "\n" + topicLabel ##Message to send to MASTER 
     producer.send(msg.encode())
     master_response = producer.recv(1024)
     print("Master: " + master_response.decode())
@@ -25,12 +25,14 @@ def run_producer():
     # Listen on Port for consumer
     producer.bind((socket.gethostname(),LISTEN_PORT))
     print("    Waiting for consumers...")
-    newThread = threading.Thread(target=sendToGroups, args=(,))
+    
+    ## Daemon to send data to consumers
+    newThread = threading.Thread(target=sendToGroups, args=())
     newThread.daemon = True
     newThread.start()
     
     producer.listen(5)
-    # WHILE LOOP HERE?
+
     while True:
         consumer, addr = producer.accept()
         newThread = threading.Thread(target=acceptConsumer, args=(consumer,))
@@ -45,9 +47,11 @@ def get_free_tcp_port():
     return port
 
 def sendToGroups():
+    mutex = Lock()
     current = [] ## track current consumer of each group
     while True:
-        print("\n")
+        if len(consumerGroups) > 0:
+            print("\n")
         ## generate date
         msg = str(random.randint(0,100))
         
@@ -56,12 +60,16 @@ def sendToGroups():
             current.append(0)
 
         index = 0 ## index of current group in consumerGroups
+        
         for group in consumerGroups:
             # send msg to consumers
+            mutex.acquire()
             print("sending " + msg + " to consumer " + str(current[index]) + " in group " + group["groupID"] + " at address " + group["Consumers"][current[index]].getsockname()[0])
             group["Consumers"][current[index]].sendall(msg.encode()) ## send message
-            current[index] = current[index] + 1 % len(group["Consumers"]) ## increment current
+            current[index] = (current[index] + 1) % len(group["Consumers"])  ## increment current
+            mutex.release()            
             index +=1 ## group
+
         time.sleep(2)
 
 
@@ -70,40 +78,46 @@ def acceptConsumer(consumer):
     ## GET GROUP ID
     groupID = consumer.recv(1024).decode()
     ## handle group ID
-    ## IF GROUP EXISTS
-    exists = next((group for group in consumerGroups if group["groupID"] == groupID), None)
-    ## Prevent race condition
+    ## PREVENT RACE CONDITION
     mutex.acquire()
-    if exists:
-        exists["Consumers"].append(consumer)
-        print("    Consumer added to group...")
+    ## EXISTING CONSUMER EXITING
+    if(groupID == ""):
+        ## consumer is exiting, remove them from consumer groups
+        group = next((group for group in consumerGroups if consumer in group["Consumers"] ), None)
+        group["Consumers"].remove(consumer)
+        print("    Consumer at " + consumer.getsockname()[0] + " removed from Consumer Group... ")
+        consumer.close()
+    ## GOT PORT
     else:
-        consumerGroups.append({"GroupID": groupID, "Consumers": [consumer]})
-        print("    Group created, Consumer added...")
+        group = next((group for group in consumerGroups if group["groupID"] == groupID), None)
+        ## IF GROUP EXISTS
+        if group:
+            group["Consumers"].append(consumer)
+            print("    Consumer added to group...")
+        ## ELSE, CREATE GROUP
+        else:
+            consumerGroups.append({"groupID": groupID, "Consumers": [consumer]})
+            print("    Group created, Consumer added...")
     mutex.release()
+    ## END CRITICAL SECTION
     return
-    ## ELSE, CREATE GROUP
-    # while True:
-    #     msg = str(random.randint(0,100)) # random message for test
-    #     consumer.sendall(msg.encode()) ## send to consumer
-    #     time.sleep(1)
-    
 
 def exit_gracefully(signum, frame):
     ## SEND EXIT TO MASTER
     producer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ## send MASTER the port we are listening on
     producer.connect((MASTER_IP, MASTER_PORT))
-    msg = "exit \n" + str(LISTEN_PORT) ##Message to send to MASTER 
+    msg = "producer\nexit\n" + topicLabel + "\n" + str(LISTEN_PORT) ##Message to send to MASTER 
     producer.send(msg.encode())
     producer.close()
     ## SEND EXIT TO ALL CONSUMERS
     for group in consumerGroups:
-        for consumer in group["Consumers"]
+        for consumer in group["Consumers"]:
             consumer.send("".encode())
 
     # for consumer in consumerGroups:
     #     consumer.send("".encode())
+    print("Exited Cleanly.\n")
     sys.exit(0)
 
 
@@ -121,8 +135,10 @@ if __name__ == '__main__':
     #     {"GroupID":"A", "Consumers": [consumer1, consumer2, ...]},
     #     {"GroupID":"B", "Consumers": [consumer1, consumer2, ...]}
     # ]
+    
     LISTEN_PORT = get_free_tcp_port() ## get port number
     MASTER_IP = sys.argv[1] ## MASTER IP from cmd line
+    topicLabel = sys.argv[2] ## topic from cmdln
     MASTER_PORT = 8080 ## MASTER PORT
     original_sigint = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, exit_gracefully)
