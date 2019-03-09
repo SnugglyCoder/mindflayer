@@ -113,7 +113,11 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 			return
 		}
 
+		log.Print("Consumer message: ", message)
+
 		consumers[message[2]] = append(consumers[message[2]], ipString[0]+message[1])
+
+		log.Print("Consumer list: ", consumers)
 
 		var producerList string
 
@@ -128,10 +132,10 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 		if err != nil {
 
-			log.Print(err)
+			log.Print("ERROR on connection read:", err)
 		}
 
-		log.Print(string(data[:byteCount]))
+		log.Print("Consumer response: ", string(data[:byteCount]))
 	}
 }
 
