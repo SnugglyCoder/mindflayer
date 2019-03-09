@@ -57,8 +57,6 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 		log.Print("Got exit command")
 
-		//log.Print(ipString[0] + message[1])
-
 		lock.Lock()
 
 		for index, producerID := range producers["topic"] {
@@ -81,6 +79,11 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 		lock.Lock()
 
 		producers["topic"] = append(producers["topic"], ipString[0]+message[1])
+
+		for _, consumer := range consumers["topic"] {
+
+			go sendConsumerNewProducer(consumer, ipString[0]+message[1])
+		}
 
 		lock.Unlock()
 	}
@@ -113,4 +116,22 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 	}
 
 	connection.Write([]byte("Got your message!"))
+}
+
+func sendConsumerNewProducer(consumer, producer string) {
+
+	log.Print("Sending producer: ", producer, " to consumer: ", consumer)
+
+	connection, err := net.Dial("tcp", consumer)
+
+	if err != nil {
+
+		log.Print(err)
+
+		return
+	}
+
+	connection.Write([]byte(producer + "\n"))
+
+	connection.Close()
 }
