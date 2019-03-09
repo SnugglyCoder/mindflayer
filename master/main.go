@@ -34,6 +34,8 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 	defer connection.Close()
 
+	defer connection.Write([]byte("Got your message!"))
+
 	ipString := strings.SplitAfter(connection.RemoteAddr().String(), ":")
 
 	log.Print("Received data from ", ipString[0])
@@ -53,45 +55,65 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 	message := strings.Fields(string(data[:byteCount]))
 
-	if message[0] == "exit" {
-
-		log.Print("Got exit command")
-
-		//log.Print(ipString[0] + message[1])
-
-		lock.Lock()
-
-		for index, producerID := range producers["topic"] {
-
-			if producerID == ipString[0]+message[1] {
-
-				producers["topic"] = append(producers["topic"][:index], producers["topic"][index+1:]...)
-
-				break
-			}
-		}
-
-		lock.Unlock()
-	}
-
 	if message[0] == "producer" {
 
-		log.Print("Got a producer! It will be listening on port " + message[1])
+		log.Print("Got thing from producer")
 
 		lock.Lock()
+
+		defer lock.Unlock()
+
+		if message[1] == "exit" {
+
+			log.Print("Got exit command from producer")
+
+			for index, producerID := range producers["topic"] {
+
+				if producerID == ipString[0]+message[1] {
+
+					producers["topic"] = append(producers["topic"][:index], producers["topic"][index+1:]...)
+
+					break
+				}
+			}
+
+			return
+		}
 
 		producers["topic"] = append(producers["topic"], ipString[0]+message[1])
 
-		lock.Unlock()
+		for _, consumer := range consumers["topic"] {
+
+			go sendConsumerNewProducer(consumer, ipString[0]+message[1])
+		}
+
+		return
 	}
 
 	if message[0] == "consumer" {
 
 		lock.Lock()
 
-		consumers["topic"] = append(consumers["topic"], ipString[0]+message[1])
+		defer lock.Unlock()
 
-		lock.Unlock()
+		log.Print("Got thing from consumer")
+
+		if message[1] == "exit" {
+
+			log.Print("Got exit notification from consumer")
+
+			for index := range consumers[message[2]] {
+
+				if consumers[message[2]][index] == ipString[0]+message[3] {
+
+					consumers[message[2]] = append(consumers[message[2]][:index], consumers[message[2]][index+1:]...)
+				}
+			}
+
+			return
+		}
+
+		consumers["topic"] = append(consumers["topic"], ipString[0]+message[1])
 
 		var producerList string
 
@@ -111,6 +133,22 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 		log.Print(string(data[:byteCount]))
 	}
+}
 
-	connection.Write([]byte("Got your message!"))
+func sendConsumerNewProducer(consumer, producer string) {
+
+	log.Print("Sending producer: ", producer, " to consumer: ", consumer)
+
+	connection, err := net.Dial("tcp", consumer)
+
+	if err != nil {
+
+		log.Print(err)
+
+		return
+	}
+
+	connection.Write([]byte(producer + "\n"))
+
+	connection.Close()
 }
