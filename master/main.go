@@ -67,11 +67,11 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 			log.Print("Got exit command from producer")
 
-			for index, producerID := range producers["topic"] {
+			for index, producerID := range producers[message[2]] {
 
-				if producerID == ipString[0]+message[1] {
+				if producerID == ipString[0]+message[3] {
 
-					producers["topic"] = append(producers["topic"][:index], producers["topic"][index+1:]...)
+					producers[message[2]] = append(producers[message[2]][:index], producers[message[2]][index+1:]...)
 
 					break
 				}
@@ -80,9 +80,9 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 			return
 		}
 
-		producers["topic"] = append(producers["topic"], ipString[0]+message[1])
+		producers[message[2]] = append(producers[message[2]], ipString[0]+message[1])
 
-		for _, consumer := range consumers["topic"] {
+		for _, consumer := range consumers[message[2]] {
 
 			go sendConsumerNewProducer(consumer, ipString[0]+message[1])
 		}
@@ -113,11 +113,11 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 			return
 		}
 
-		consumers["topic"] = append(consumers["topic"], ipString[0]+message[1])
+		consumers[message[2]] = append(consumers[message[2]], ipString[0]+message[1])
 
 		var producerList string
 
-		for _, producerData := range producers["topic"] {
+		for _, producerData := range producers[message[2]] {
 
 			producerList += producerData + "\n"
 		}
