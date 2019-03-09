@@ -104,7 +104,9 @@ public class Consumer {
             System.out.println("Connected to host..\n");
 
             // Send master notice of availability
-            master.writeString("consumer\n" + tcpMasterService.serverPort);
+            master.writeString("consumer\n" +
+                               tcpMasterService.serverPort + "\n" +
+                               TOPIC);
 
             // Get list of producers
             String[] listOfAddressesFromMaster = master.readString().split("\\r?\\n");
