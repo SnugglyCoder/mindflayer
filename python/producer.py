@@ -10,7 +10,6 @@ def run_producer():
     print("Listening on port: " + str(LISTEN_PORT))
     ## CREATE CONNECTION TO MASTER
     # producer socket
-    topicLabel = "random"
     consumerGroups = [] ## list of dicts ("Group Label": [consumer1, consumer2, ...])
     producer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ## send MASTER the port we are listening on
@@ -30,7 +29,7 @@ def run_producer():
     newThread = threading.Thread(target=sendToGroups, args=())
     newThread.daemon = True
     newThread.start()
-    
+
     producer.listen(5)
 
     while True:
@@ -38,6 +37,7 @@ def run_producer():
         newThread = threading.Thread(target=acceptConsumer, args=(consumer,))
         newThread.daemon = True
         newThread.start()
+
 ## gets free port to listen on
 def get_free_tcp_port():
     tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,16 +72,32 @@ def sendToGroups():
 
         time.sleep(2)
 
+# def exitingHandler(consumer):
+#     data = consumer.recv(1024).decode()
+#     while not data == "":
+#         data = data.split("\n")
+#         host = data[0]
+#         port = data[1]
+#         groupID = data[2]
+#         sock = socket((host,port))
+#         group = next((group for group in consumerGroups if sock in group["Consumers"] ), None)
+#         group["Consumers"].remove(sock)
+#         print("    Consumer at " + consumer.getsockname()[0] + " removed from Consumer Group... ")
+#         data = consumer.recv(1024).decode()
 
 def acceptConsumer(consumer):
     mutex = Lock()
     ## GET GROUP ID
-    groupID = consumer.recv(1024).decode()
+    groupID = consumer.recv(1024)
+    groupID = groupID.decode()
     ## handle group ID
     ## PREVENT RACE CONDITION
     mutex.acquire()
     ## EXISTING CONSUMER EXITING
+    print(groupID)
     if(groupID == ""):
+        #exitingHandler(consumer)
+        print("removing...")
         ## consumer is exiting, remove them from consumer groups
         group = next((group for group in consumerGroups if consumer in group["Consumers"] ), None)
         group["Consumers"].remove(consumer)
@@ -135,7 +151,7 @@ if __name__ == '__main__':
     #     {"GroupID":"A", "Consumers": [consumer1, consumer2, ...]},
     #     {"GroupID":"B", "Consumers": [consumer1, consumer2, ...]}
     # ]
-    
+
     LISTEN_PORT = get_free_tcp_port() ## get port number
     MASTER_IP = sys.argv[1] ## MASTER IP from cmd line
     topicLabel = sys.argv[2] ## topic from cmdln
