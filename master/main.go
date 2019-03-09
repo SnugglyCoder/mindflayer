@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -33,25 +32,46 @@ func main() {
 
 func handleConnection(connection net.Conn, producers, consumers map[string][]string, lock *sync.Mutex) {
 
+	defer connection.Close()
+
 	ipString := strings.SplitAfter(connection.RemoteAddr().String(), ":")
 
-	log.Print("Received data from ", ipString)
+	log.Print("Received data from ", ipString[0])
 
 	data := make([]byte, 2048)
 
 	byteCount, err := connection.Read(data)
 
 	if err != nil {
+
 		log.Print(err)
+
+		return
 	}
 
-	log.Print("Received ", byteCount, " bytes. Data is "+string(data[:byteCount]))
+	log.Printf("Received %d bytes. Data is %s", byteCount, string(data[:byteCount]))
 
 	message := strings.Fields(string(data[:byteCount]))
 
 	if message[0] == "exit" {
 
 		log.Print("Got exit command")
+
+		//log.Print(ipString[0] + message[1])
+
+		lock.Lock()
+
+		for index, producerID := range producers["topic"] {
+
+			if producerID == ipString[0]+message[1] {
+
+				producers["topic"] = append(producers["topic"][:index], producers["topic"][index+1:]...)
+
+				break
+			}
+		}
+
+		lock.Unlock()
 	}
 
 	if message[0] == "producer" {
@@ -73,15 +93,24 @@ func handleConnection(connection net.Conn, producers, consumers map[string][]str
 
 		lock.Unlock()
 
-		connection.Write([]byte(strconv.Itoa(len(producers))))
+		var producerList string
 
 		for _, producerData := range producers["topic"] {
 
-			connection.Write([]byte(producerData))
+			producerList += producerData + "\n"
 		}
+
+		connection.Write([]byte(producerList))
+
+		byteCount, err = connection.Read(data)
+
+		if err != nil {
+
+			log.Print(err)
+		}
+
+		log.Print(string(data[:byteCount]))
 	}
 
 	connection.Write([]byte("Got your message!"))
-
-	connection.Close()
 }
