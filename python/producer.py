@@ -72,18 +72,18 @@ def sendToGroups():
 
         time.sleep(2)
 
-def exitingHandler(consumer):
-    data = consumer.recv(1024).decode()
-    while not data == "":
-        data = data.split("\n")
-        host = data[0]
-        port = data[1]
-        groupID = data[2]
-        sock = socket((host,port))
-        group = next((group for group in consumerGroups if sock in group["Consumers"] ), None)
-        group["Consumers"].remove(sock)
-        print("    Consumer at " + consumer.getsockname()[0] + " removed from Consumer Group... ")
-        data = consumer.recv(1024).decode()
+# def exitingHandler(consumer):
+#     data = consumer.recv(1024).decode()
+#     while not data == "":
+#         data = data.split("\n")
+#         host = data[0]
+#         port = data[1]
+#         groupID = data[2]
+#         sock = socket((host,port))
+#         group = next((group for group in consumerGroups if sock in group["Consumers"] ), None)
+#         group["Consumers"].remove(sock)
+#         print("    Consumer at " + consumer.getsockname()[0] + " removed from Consumer Group... ")
+#         data = consumer.recv(1024).decode()
 
 def acceptConsumer(consumer):
     mutex = Lock()
@@ -95,14 +95,14 @@ def acceptConsumer(consumer):
     mutex.acquire()
     ## EXISTING CONSUMER EXITING
     print(groupID)
-    if(groupID == "exit"):
-        exitingHandler(consumer)
-        # print("removing...")
-        # ## consumer is exiting, remove them from consumer groups
-        # group = next((group for group in consumerGroups if consumer in group["Consumers"] ), None)
-        # group["Consumers"].remove(consumer)
-        # print("    Consumer at " + consumer.getsockname()[0] + " removed from Consumer Group... ")
-        # consumer.close()
+    if(groupID == ""):
+        #exitingHandler(consumer)
+        print("removing...")
+        ## consumer is exiting, remove them from consumer groups
+        group = next((group for group in consumerGroups if consumer in group["Consumers"] ), None)
+        group["Consumers"].remove(consumer)
+        print("    Consumer at " + consumer.getsockname()[0] + " removed from Consumer Group... ")
+        consumer.close()
     ## GOT PORT
     else:
         group = next((group for group in consumerGroups if group["groupID"] == groupID), None)
