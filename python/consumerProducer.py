@@ -161,7 +161,7 @@ def CandP():
     ### INIT CONSUMER
     consumerPort = get_free_tcp_port()
     producers = []
-    consumer = Consumer(socket.gethostname(), consumerPort, producers, topic, 'A')
+    consumer = Consumer(socket.gethostname(), consumerPort, producers, topicIn, 'A')
     print("Consumer created...")
     prods = consumer.getProducers()
     print(prods)
@@ -182,7 +182,7 @@ def CandP():
     producerPort = get_free_tcp_port()
     print(str(producerPort))
     consumerGroups = []
-    producer = Producer(socket.gethostname(), producerPort, consumerGroups, 'random')
+    producer = Producer(socket.gethostname(), producerPort, consumerGroups, topicOut)
     print("Producer created...")
     print(producer)
     producer.notifyMaster(MASTER_IP, MASTER_PORT)
@@ -221,7 +221,8 @@ def get_free_tcp_port():
 if __name__ == "__main__":
     MASTER_IP = sys.argv[1]
     MASTER_PORT = 8080
-    topic = sys.argv[2]
+    topicIn = sys.argv[2]
+    topicOut = sys.argv[3]
     dataBuffer = []
     senders = []#?
     recvProd = []#?
