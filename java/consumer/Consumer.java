@@ -22,12 +22,12 @@ public class Consumer {
     private static ArrayList<TcpMinion> minions = new ArrayList<>();
 
     /**
-     * @param args [server-ip] [server-port] [group-id]
+     * @param args [server-ip] [server-port] [group-id] [topic]
      */
     public static void main(String[] args) {
 
-        if (args.length < 3) {
-            System.out.println("Usage: java -jar consumer.jar [server-ip] [server-port] [group-id]");
+        if (args.length < 4) {
+            System.out.println("Usage: java -jar consumer.jar [server-ip] [server-port] [group-id] [topic]");
             System.exit(0);
         }
 
@@ -45,7 +45,10 @@ public class Consumer {
 
         GROUP_ID = args[2];
 
-        runReceiverService(HOSTNAME, SERVER_PORT);
+        TOPIC = args[3];
+
+        runConsumerService(HOSTNAME, SERVER_PORT);
+        //runProducerService(HOSTNAME, SERVER_PORT);
     }
 
     private static boolean isHostnameValid(String hostname) {
@@ -86,7 +89,7 @@ public class Consumer {
         }
     }
 
-    private static void runReceiverService(final String HOSTNAME,
+    private static void runConsumerService(final String HOSTNAME,
                                            final int SERVER_PORT) {
         try {
             // Try to setup listener for master..
@@ -134,6 +137,15 @@ public class Consumer {
         }
 
         public void shutdown() {
+//            try {
+//                EasySocket shutdownMinionSocket = new EasySocket(minion.getInetAddress().getHostAddress(), minion.getLocalPort());
+//                shutdownMinionSocket.writeString("exit");
+//                shutdownMinionSocket.writeString(minion.getInetAddress().getHostAddress() + "\n" +
+//                                                 minion.getLocalPort() + "\n" +
+//                                                 GROUP_ID);
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
             minion.writeString("");
             minion.closeStreams();
         }
@@ -142,13 +154,13 @@ public class Consumer {
         public void run() {
             try {
                 while (minion.isConnected()) {
-                    String stringFromConsumer = minion.readString();
+                    String stringFromProducer = minion.readString();
 
-                    if (stringFromConsumer.trim().isEmpty()) {
+                    if (stringFromProducer.trim().isEmpty()) {
                         break;
                     }
 
-                    System.out.println(stringFromConsumer);
+                    System.out.println(stringFromProducer);
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -166,12 +178,10 @@ public class Consumer {
 
         public void shutdown() {
             for (TcpMinion minion: minions) {
-                // Send minion notification here if needed
                 minion.shutdown();
                 System.out.println("SHUTDOWN minion");
             }
             try {
-                // Send server notification here if needed
                 if (serverSocket != null) {
                     serverSocket.close();
                 }
